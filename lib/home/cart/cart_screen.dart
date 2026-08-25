@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:foodie/home/cart/order_success_screen.dart';
+import 'package:foodie/payment/payment_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:foodie/core/theme/app_colors.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 class CartItemInput {
   const CartItemInput({
@@ -46,6 +48,8 @@ class _CartScreenState extends State<CartScreen> {
   final TextEditingController _noteController = TextEditingController();
   _PaymentMethod _selectedPayment = _PaymentMethod.cash;
   bool _showPaymentOptions = false;
+  bool _isProcessingPayment = false;
+  late final PaymentService _paymentService;
 
   static const double _deliveryFee = 50.0;
   static const double _platformFee = 9.90;
@@ -58,20 +62,48 @@ class _CartScreenState extends State<CartScreen> {
   void initState() {
     super.initState();
     _cartItems = widget.initialItem == null
-        ? []
-        : [
+        ? []: [
             _CartLine(
               name: widget.initialItem!.name,
               price: widget.initialItem!.price,
-              imagePath: widget.initialItem!.imagePath,
-            ),
-          ];
+              imagePath: widget.initialItem!.imagePath,),
+            ];
+            _paymentService = PaymentService(onSuccess: _onPaymentSuccess, onError: _onPaymentError);
   }
+
+  void _onPlaceOrderPressed() {
+    if (_selectedPayment == _PaymentMethod.cash) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OrderSuccessScreen()),);
+      return;
+    }
+ 
+    setState(() => _isProcessingPayment = true);
+    final itemNames = _cartItems.map((item) => item.name).join(', ');
+    _paymentService.openCheckout(
+      amountInRupees: _total,
+      description: itemNames,
+    );
+  }
+
+   void _onPaymentSuccess(PaymentSuccessResponse response) {
+    setState(() => _isProcessingPayment = false);
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OrderSuccessScreen()),);
+  }
+
+ void _onPaymentError(PaymentFailureResponse response) {
+    setState(() => _isProcessingPayment = false);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Payment failed: ${response.message ?? 'Please try again'}')),
+    );
+  }
+
 
   @override
   void dispose() {
     _voucherController.dispose();
     _noteController.dispose();
+    _paymentService.dispose();
     super.dispose();
   }
 
@@ -81,15 +113,6 @@ class _CartScreenState extends State<CartScreen> {
 
   void _incrementQty(_CartLine item) => setState(() => item.qty++);
 
-  // void _decrementOrRemove(_CartLine item) {
-  //   setState(() {
-  //     if (item.qty > 1) {
-  //       item.qty--;
-  //     } else {
-  //       _cartItems.remove(item);
-  //     }
-  //   });
-  // }
 
   @override
   Widget build(BuildContext context) {
@@ -532,16 +555,18 @@ class _CartScreenState extends State<CartScreen> {
           const Divider(),
           const SizedBox(height: 12), 
           ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(builder: (_)=> const OrderSuccessScreen()));
-            },
+            // onPressed: () {
+            //   Navigator.of(context).push(MaterialPageRoute(builder: (_)=> const OrderSuccessScreen()));
+            // },
+            onPressed: _isProcessingPayment ? null : _onPlaceOrderPressed,
             style: ElevatedButton.styleFrom(
               backgroundColor: Color(0xFFFE6D38),
+              disabledBackgroundColor: Color(0xFFFE6D38),
               minimumSize: const Size.fromHeight(50),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: Text(
-              'Place order',
+            child: _isProcessingPayment ? const SizedBox(width: 22,height: 22,child: CircularProgressIndicator(color: Colors.white,),): 
+            Text('Place order',
               style: GoogleFonts.inter(fontSize: 15, letterSpacing: 0.8,fontWeight: FontWeight.w700, color: Colors.white),
             ),
           ),
