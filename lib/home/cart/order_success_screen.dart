@@ -292,7 +292,8 @@ class _ConfettiPainter extends CustomPainter {
           0.5 * gravity * localT * localT;
 
       final paint = Paint()
-        ..color = particle.color.withOpacity(opacity)
+        ..color = particle.color.withValues(alpha: opacity)
+        // ..color = particle.color.withOpacity(opacity)
         ..style = PaintingStyle.fill;
 
       final pos = center + Offset(dx, dy);
